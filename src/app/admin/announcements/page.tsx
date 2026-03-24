@@ -21,8 +21,8 @@ export default function AdminAnnouncementsPage() {
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({
     title:       '',
-    message:     '',
-    is_pinned:   false,
+    content:     '',
+    is_active:   false,
   })
 
   useEffect(() => {
@@ -34,8 +34,8 @@ export default function AdminAnnouncementsPage() {
     const supabase = createClient()
     const { data } = await supabase
       .from('announcements')
-      .select('*, profile:profiles!announcements_created_by_fkey(*)')
-      .order('is_pinned', { ascending: false })
+      .select('*')
+      .order('is_active', { ascending: false })
       .order('created_at', { ascending: false })
     setAnnouncements(data || [])
     setLoading(false)
@@ -50,11 +50,11 @@ export default function AdminAnnouncementsPage() {
       .from('announcements')
       .insert({
         title:       form.title,
-        message:     form.message,
-        is_pinned:   form.is_pinned,
+        content:     form.content,
+        is_active:   form.is_active,
         created_by:  profile!.user_id,
       })
-      .select('*, profile:profiles!announcements_created_by_fkey(*)')
+      .select()
       .single()
 
     if (error) {
@@ -70,7 +70,7 @@ export default function AdminAnnouncementsPage() {
       const notifs = employees.map(emp => ({
         user_id:    emp.user_id,
         title:      form.is_pinned ? '📌 Pinned Announcement' : '📢 New Announcement',
-        message:    `${form.title}: ${form.message.substring(0, 80)}${form.message.length > 80 ? '...' : ''}`,
+        message:    `${form.title}: ${form.content.substring(0, 80)}${form.content.length > 80 ? '...' : ''}`,
         type:       'announcement',
         related_id: newAnnouncement.id,
       }))
@@ -79,7 +79,7 @@ export default function AdminAnnouncementsPage() {
 
     toast.success('Announcement posted!')
     setShowModal(false)
-    setForm({ title: '', message: '', is_pinned: false })
+    setForm({ title: '', content: '', is_active: false })
     loadAnnouncements()
     setSubmitting(false)
   }
@@ -88,7 +88,7 @@ export default function AdminAnnouncementsPage() {
     const supabase = createClient()
     const { error } = await supabase
       .from('announcements')
-      .update({ is_pinned: !ann.is_pinned })
+      .update({ is_active: !ann.is_active })
       .eq('id', ann.id)
 
     if (!error) {
@@ -136,16 +136,16 @@ export default function AdminAnnouncementsPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-2">
-                    {ann.is_pinned && (
+                    {ann.is_active && (
                       <Badge variant="purple">
                         <Pin className="w-3 h-3 mr-1 inline" /> Pinned
                       </Badge>
                     )}
                   </div>
                   <h3 className="text-white font-semibold text-sm mb-1">{ann.title}</h3>
-                  <p className="text-xs text-slate-400 whitespace-pre-wrap mb-2">{ann.message}</p>
+                  <p className="text-xs text-slate-400 whitespace-pre-wrap mb-2">{ann.content}</p>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                    <span>Posted by {ann.profile?.full_name}</span>
+                    <span>Posted by Admin</span>
                     <span>•</span>
                     <span>{formatDate(ann.created_at)}</span>
                   </div>
@@ -154,13 +154,13 @@ export default function AdminAnnouncementsPage() {
                 <button
                   onClick={() => togglePin(ann)}
                   className={`p-2 rounded-lg border transition-all ${
-                    ann.is_pinned
+                    ann.is_active
                       ? 'border-amber-500/40 text-amber-400 hover:bg-amber-500/10'
                       : 'border-white/10 text-slate-500 hover:text-slate-300'
                   }`}
-                  title={ann.is_pinned ? 'Unpin' : 'Pin'}
+                  title={ann.is_active ? 'Unpin' : 'Pin'}
                 >
-                  <Pin className={`w-4 h-4 ${ann.is_pinned ? 'fill-amber-400' : ''}`} />
+                  <Pin className={`w-4 h-4 ${ann.is_active ? 'fill-amber-400' : ''}`} />
                 </button>
               </div>
             </motion.div>
@@ -186,8 +186,8 @@ export default function AdminAnnouncementsPage() {
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1.5">Message</label>
             <textarea
-              value={form.message}
-              onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
+              value={form.content}
+              onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
               required
               rows={4}
               placeholder="Write your announcement..."
@@ -198,8 +198,8 @@ export default function AdminAnnouncementsPage() {
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={form.is_pinned}
-              onChange={e => setForm(f => ({ ...f, is_pinned: e.target.checked }))}
+              checked={form.is_active}
+              onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
               className="w-4 h-4 rounded border-white/20 bg-white/5 text-brand-500 focus:ring-brand-500"
             />
             <span className="text-sm text-slate-300">Pin this announcement</span>

@@ -91,8 +91,8 @@ export interface Announcement {
   id: string
   created_by: string
   title: string
-  message: string
-  is_pinned: boolean
+  content: string
+  is_active: boolean
   created_at: string
   profile?: Profile
 }

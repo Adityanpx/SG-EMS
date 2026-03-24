@@ -82,11 +82,32 @@ export default function EmployeeDashboard() {
     // Who's on leave today
     const { data: leaves } = await supabase
       .from('leave_requests')
-      .select('*, profile:profiles!leave_requests_user_id_fkey(*)')
+      .select('*')
       .eq('status', 'approved')
       .lte('from_date', today)
       .gte('to_date', today)
-    setOnLeaveToday(leaves?.map((l: LeaveRequest) => l.profile!).filter(Boolean) || [])
+    
+    // Get profile info for users on leave
+    const leaveUserIds = leaves?.map(l => l.user_id) || []
+    let profilesMap: Record<string, any> = {}
+    
+    if (leaveUserIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('user_id', leaveUserIds)
+      
+      if (profilesData) {
+        profilesData.forEach(p => {
+          profilesMap[p.user_id] = p
+        })
+      }
+    }
+    
+    const onLeaveProfiles = (leaves || [])
+      .map(l => profilesMap[l.user_id])
+      .filter(Boolean)
+    setOnLeaveToday(onLeaveProfiles)
 
     // Active announcements
     const { data: ann } = await supabase

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Users, Clock, FileText, CheckCircle, AlertTriangle, Megaphone } from 'lucide-react'
+import { Users, Clock, FileText, CheckCircle, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -16,14 +16,15 @@ export default function AdminDashboard() {
   const { profile, loading: authLoading } = useAuth()
 
   const [stats, setStats] = useState({
-    totalEmployees:  0,
-    presentToday:    0,
+    totalEmployees: 0,
+    presentToday: 0,
     pendingRequests: 0,
-    tasksAssigned:   0,
+    tasksAssigned: 0,
   })
+
   const [recentRequests, setRecentRequests] = useState<LeaveRequest[]>([])
-  const [absentToday, setAbsentToday]       = useState<Profile[]>([])
-  const [loading, setLoading]               = useState(true)
+  const [absentToday, setAbsentToday] = useState<Profile[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!profile) return
@@ -32,48 +33,62 @@ export default function AdminDashboard() {
 
   async function loadDashboard() {
     const supabase = createClient()
-    const today    = new Date().toISOString().split('T')[0]
+    const today = new Date().toISOString().split('T')[0]
 
-    // Total employees
     const { count: empCount } = await supabase
       .from('profiles')
       .select('*', { count: 'exact', head: true })
       .eq('role', 'employee')
 
-    // Present today
     const { count: presentCount } = await supabase
       .from('attendance_records')
       .select('*', { count: 'exact', head: true })
       .eq('date', today)
 
-    // Pending requests
     const { count: pendingCount } = await supabase
       .from('leave_requests')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'pending')
 
-    // Tasks assigned
     const { count: taskCount } = await supabase
       .from('tasks')
       .select('*', { count: 'exact', head: true })
       .neq('status', 'done')
 
     setStats({
-      totalEmployees:  empCount || 0,
-      presentToday:    presentCount || 0,
+      totalEmployees: empCount || 0,
+      presentToday: presentCount || 0,
       pendingRequests: pendingCount || 0,
-      tasksAssigned:   taskCount || 0,
+      tasksAssigned: taskCount || 0,
     })
 
-    // Recent requests (last 5)
     const { data: reqData } = await supabase
       .from('leave_requests')
-      .select('*, profile:profiles!leave_requests_user_id_fkey(*)')
+      .select('*')
       .order('created_at', { ascending: false })
       .limit(5)
-    setRecentRequests(reqData || [])
 
-    // Who hasn't clocked in today (employees with no attendance record today)
+    const reqUserIds = reqData?.map(r => r.user_id) || []
+    let profilesMap: Record<string, any> = {}
+
+    if (reqUserIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('user_id', reqUserIds)
+
+      profilesData?.forEach(p => {
+        profilesMap[p.user_id] = p
+      })
+    }
+
+    const requestsWithProfile = (reqData || []).map(req => ({
+      ...req,
+      profile: profilesMap[req.user_id] || null,
+    }))
+
+    setRecentRequests(requestsWithProfile)
+
     const { data: allEmployees } = await supabase
       .from('profiles')
       .select('*')
@@ -84,18 +99,23 @@ export default function AdminDashboard() {
       .select('user_id')
       .eq('date', today)
 
-    const presentUserIds = new Set((todayAttendance || []).map((a: { user_id: string }) => a.user_id))
-    const absent = (allEmployees || []).filter((e: Profile) => !presentUserIds.has(e.user_id))
-    setAbsentToday(absent)
+    const presentUserIds = new Set(
+      (todayAttendance || []).map((a: { user_id: string }) => a.user_id)
+    )
 
+    const absent = (allEmployees || []).filter(
+      (e: Profile) => !presentUserIds.has(e.user_id)
+    )
+
+    setAbsentToday(absent)
     setLoading(false)
   }
 
   const STATUS_VARIANT: Record<string, 'warning' | 'success' | 'danger' | 'info'> = {
-    pending:  'warning',
+    pending: 'warning',
     approved: 'success',
     rejected: 'danger',
-    on_hold:  'info',
+    on_hold: 'info',
   }
 
   const greeting = () => {
@@ -108,51 +128,59 @@ export default function AdminDashboard() {
   if (authLoading || loading) return <Loader />
 
   return (
-    <div>
+    <div className="space-y-8">
+
       <PageHeader
         title={`${greeting()}, ${profile?.full_name?.split(' ')[0]} 👋`}
-        subtitle={new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        subtitle={new Date().toLocaleDateString('en-IN', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })}
       />
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* ✅ FIXED STATS CARDS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
         {[
-          { label: 'Total Employees',   value: stats.totalEmployees,  icon: Users,       color: 'from-brand-500 to-brand-600',     glow: 'shadow-glow-brand' },
-          { label: 'Present Today',     value: stats.presentToday,    icon: Clock,       color: 'from-emerald-500 to-teal-600',    glow: '' },
-          { label: 'Pending Requests',  value: stats.pendingRequests, icon: FileText,    color: 'from-amber-500 to-orange-600',    glow: '' },
-          { label: 'Active Tasks',      value: stats.tasksAssigned,   icon: CheckCircle, color: 'from-rose-500 to-brand-600',      glow: 'shadow-glow-purple' },
-        ].map(({ label, value, icon: Icon, color, glow }, i) => (
+          { label: 'Total Employees', value: stats.totalEmployees, icon: Users, color: 'bg-blue-500' },
+          { label: 'Present Today', value: stats.presentToday, icon: Clock, color: 'bg-green-500' },
+          { label: 'Pending Requests', value: stats.pendingRequests, icon: FileText, color: 'bg-orange-500' },
+          { label: 'Active Tasks', value: stats.tasksAssigned, icon: CheckCircle, color: 'bg-pink-500' },
+        ].map(({ label, value, icon: Icon, color }, i) => (
           <motion.div
             key={label}
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.07 }}
-            className="glass-card p-5"
+            transition={{ delay: i * 0.05 }}
+            className="glass-card p-4 flex items-center gap-4"
           >
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-3 ${glow}`}>
+            {/* ICON */}
+            <div className={`w-10 h-10 rounded-lg ${color} flex items-center justify-center shrink-0`}>
               <Icon className="w-5 h-5 text-white" />
             </div>
-            <p className="text-2xl font-bold text-white">{value}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+
+            {/* TEXT */}
+            <div className="flex flex-col">
+              <p className="text-xl font-semibold text-white leading-none">
+                {value}
+              </p>
+              <p className="text-sm text-slate-400 leading-tight">
+                {label}
+              </p>
+            </div>
           </motion.div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {/* CONTENT */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* Recent requests */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="glass-card p-5"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-rose-400" />
-              <h2 className="font-semibold text-white text-sm">Recent Requests</h2>
-            </div>
-            <Link href="/admin/requests" className="text-xs text-brand-400 hover:text-brand-300 transition-colors">
+        {/* Recent Requests */}
+        <div className="glass-card p-5">
+          <div className="flex justify-between mb-4">
+            <h2 className="text-sm font-semibold text-white">Recent Requests</h2>
+            <Link href="/admin/requests" className="text-xs text-brand-400">
               View all →
             </Link>
           </div>
@@ -162,62 +190,51 @@ export default function AdminDashboard() {
           ) : (
             <div className="space-y-3">
               {recentRequests.map(req => (
-                <div key={req.id} className="flex items-center justify-between gap-3 py-2 border-b border-white/5 last:border-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-accent-purple flex items-center justify-center text-xs font-bold text-white shrink-0">
+                <div key={req.id} className="flex justify-between py-2 border-b border-white/5">
+                  <div className="flex gap-3">
+                    <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center text-xs text-white">
                       {getInitials(req.profile?.full_name || 'U')}
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-white truncate">{req.profile?.full_name}</p>
-                      <p className="text-xs text-slate-500">{req.type.replace('_', ' ')} · {formatDate(req.from_date)}</p>
+                    <div>
+                      <p className="text-sm text-white">{req.profile?.full_name}</p>
+                      <p className="text-xs text-slate-500">
+                        {req.type} • {formatDate(req.from_date)}
+                      </p>
                     </div>
                   </div>
-                  <Badge variant={STATUS_VARIANT[req.status]}>{req.status}</Badge>
+                  <Badge variant={STATUS_VARIANT[req.status]}>
+                    {req.status}
+                  </Badge>
                 </div>
               ))}
             </div>
           )}
-        </motion.div>
+        </div>
 
-        {/* Not clocked in today */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35 }}
-          className="glass-card p-5"
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="w-5 h-5 text-amber-400" />
-            <h2 className="font-semibold text-white text-sm">
-              Not Clocked In Today
-              {absentToday.length > 0 && (
-                <span className="ml-1.5 text-xs text-amber-400">({absentToday.length})</span>
-              )}
-            </h2>
+        {/* Absent */}
+        <div className="glass-card p-5">
+          <h2 className="text-sm font-semibold text-white mb-4">
+            Not Clocked In ({absentToday.length})
+          </h2>
+
+          <div className="space-y-3">
+            {absentToday.map(emp => (
+              <Link
+                key={emp.id}
+                href={`/admin/employees/${emp.user_id}`}
+                className="flex items-center gap-3"
+              >
+                <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs text-white">
+                  {getInitials(emp.full_name)}
+                </div>
+                <div>
+                  <p className="text-sm text-white">{emp.full_name}</p>
+                  <p className="text-xs text-slate-500">{emp.department || 'No department'}</p>
+                </div>
+              </Link>
+            ))}
           </div>
-
-          {absentToday.length === 0 ? (
-            <p className="text-xs text-emerald-400 text-center py-6">🎉 Everyone is clocked in today!</p>
-          ) : (
-            <div className="space-y-2 max-h-52 overflow-y-auto">
-              {absentToday.map(emp => (
-                <Link
-                  href={`/admin/employees/${emp.user_id}`}
-                  key={emp.id}
-                  className="flex items-center gap-2 py-2 hover:opacity-80 transition-opacity"
-                >
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                    {getInitials(emp.full_name)}
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-white">{emp.full_name}</p>
-                    <p className="text-xs text-slate-500">{emp.department || 'No department'}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </motion.div>
+        </div>
 
       </div>
     </div>

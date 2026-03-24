@@ -45,11 +45,37 @@ export default function AdminRequestsPage() {
   async function loadRequests() {
     setLoading(true)
     const supabase = createClient()
-    const { data } = await supabase
+    
+    // First get leave requests
+    const { data: requestsData } = await supabase
       .from('leave_requests')
-      .select('*, profile:profiles!leave_requests_user_id_fkey(*)')
+      .select('*')
       .order('created_at', { ascending: false })
-    setRequests(data || [])
+    
+    // Then get profiles for these users
+    const userIds = requestsData?.map(r => r.user_id) || []
+    let profilesMap: Record<string, any> = {}
+    
+    if (userIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('user_id', userIds)
+      
+      if (profilesData) {
+        profilesData.forEach(p => {
+          profilesMap[p.user_id] = p
+        })
+      }
+    }
+    
+    // Attach profile to each request
+    const requestsWithProfile = (requestsData || []).map(req => ({
+      ...req,
+      profile: profilesMap[req.user_id] || null
+    }))
+    
+    setRequests(requestsWithProfile)
     setLoading(false)
   }
 

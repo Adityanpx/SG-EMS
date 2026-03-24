@@ -109,7 +109,7 @@ export default function LoginPage() {
             className="text-center"
           >
             <h1 className="text-[22px] font-semibold tracking-tight text-white mb-1"
-              style={{ fontFamily: "'Sora', sans-serif", letterSpacing: '-0.02em' }}>
+              style={{ fontFamily: 'var(--font-sora)', letterSpacing: '-0.02em' }}>
               SG Infinity
             </h1>
             <p className="text-[13px] text-white/35 tracking-wide uppercase"
@@ -164,7 +164,7 @@ export default function LoginPage() {
                   style={{
                     background: focused === 'email' ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.04)',
                     border: `1px solid ${focused === 'email' ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.07)'}`,
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: 'var(--font-dm-sans)',
                   }}
                 />
               </div>

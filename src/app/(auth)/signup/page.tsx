@@ -71,24 +71,24 @@ export default function SignupPage() {
     }
 
     if (data.user) {
-      // Use upsert to handle cases where the trigger already created the profile
-      // This fixes the 404 PATCH error from the original code
-      await supabase
-        .from('profiles')
-        .upsert({
-          user_id:     data.user.id,
-          full_name:   form.full_name,
-          email:       form.email,
-          role:        'employee',
-          department:  form.department,
-          designation: form.designation,
-          phone:       form.phone,
-        }, { onConflict: 'user_id' })
-
+      // Note: Profile is auto-created by the database trigger 'handle_new_user'
+      // No need to upsert here - the trigger handles it
+      
+      // Check if email confirmation is required
+      if (!data.session) {
+        // Email confirmation required - show message and redirect to login
+        setStep(2)
+        setTimeout(() => {
+          toast.success('Check your email to confirm your account!')
+          router.push('/login')
+        }, 1500)
+        setLoading(false)
+        return
+      }
+      
+      // If no confirmation needed, proceed directly
       setLoginTimestamp()
       setStep(2)
-
-      // Brief pause to show success state, then redirect
       setTimeout(() => {
         toast.success('Welcome to SG Infinity!')
         router.push('/dashboard')
@@ -106,7 +106,7 @@ export default function SignupPage() {
   const inputStyle = (name: string) => ({
     background: focused === name ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.04)',
     border: `1px solid ${focused === name ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.07)'}`,
-    fontFamily: "'DM Sans', sans-serif",
+    fontFamily: 'var(--font-dm-sans)',
   })
 
   return (
@@ -140,7 +140,7 @@ export default function SignupPage() {
               style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }} />
           </div>
           <h1 className="text-[20px] font-semibold text-white tracking-tight"
-            style={{ fontFamily: "'Sora', sans-serif", letterSpacing: '-0.02em' }}>
+            style={{ fontFamily: 'var(--font-sora)', letterSpacing: '-0.02em' }}>
             Join SG Infinity
           </h1>
           <p className="text-[12px] text-white/30 mt-1 tracking-widest uppercase"
